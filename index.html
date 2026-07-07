@@ -288,7 +288,7 @@ function ReportForm({
   onCancel,
   mode
 }) {
-  const today = new Date().toISOString().split("T")[0];
+  const today = new Date().toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" });
   const defaults = {
     createdDate: today,
     visitDate: "",
@@ -1137,7 +1137,7 @@ function exportCSV(reports) {
   const headers = ["作成日", "訪問日", "訪問時間", "商談形態", "場所詳細", "作成者", "作成者メール", "訪問先会社名", "担当者名", "同行者", "温度感", "商談内容", "お客様の反応", "課題・懸念事項", "本日の成果", "次回アクション", "次回訪問予定日", "共有事項", "提出日時"];
   const rows = reports.map(r => {
     const timeStr = [r.visitTimeFrom, r.visitTimeTo].filter(Boolean).join("～");
-    return [r.createdDate || "", r.visitDate || "", timeStr, r.meetingType || "", r.visitPlace || "", r.author || "", r.authorEmail || "", r.company || "", (r.contactNames || "").replace(/\n/g, " / "), r.companions || "", r.temperature || "", (r.content || "").replace(/\n/g, " "), (r.customerReaction || "").replace(/\n/g, " "), (r.issues || "").replace(/\n/g, " "), (r.achievements || "").replace(/\n/g, " "), (r.nextAction || "").replace(/\n/g, " "), r.nextVisitDate || "", (r.marketInfo || "").replace(/\n/g, " "), (r.submittedAt || "").split("T")[0]].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",");
+    return [r.createdDate || "", r.visitDate || "", timeStr, r.meetingType || "", r.visitPlace || "", r.author || "", r.authorEmail || "", r.company || "", (r.contactNames || "").replace(/\n/g, " / "), r.companions || "", r.temperature || "", (r.content || "").replace(/\n/g, " "), (r.customerReaction || "").replace(/\n/g, " "), (r.issues || "").replace(/\n/g, " "), (r.achievements || "").replace(/\n/g, " "), (r.nextAction || "").replace(/\n/g, " "), r.nextVisitDate || "", (r.marketInfo || "").replace(/\n/g, " "), (r.submittedAt ? new Date(r.submittedAt).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }) : "")].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",");
   });
   const csv = "\uFEFF" + [headers.join(","), ...rows].join("\n");
   const blob = new Blob([csv], {
