@@ -1,0 +1,1301 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>営業報告システム | 株式会社ケイラボ</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/emailjs-com@3/dist/email.min.js"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: -apple-system, 'Hiragino Sans', 'Yu Gothic UI', 'Meiryo', sans-serif;
+    background: #f5f4f0;
+    color: #1a1a1a;
+    min-height: 100vh;
+  }
+  .page { max-width: 860px; margin: 0 auto; padding: 1.5rem 1rem 4rem; }
+  .card {
+    background: #fff;
+    border: 0.5px solid #e0ddd5;
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    margin-bottom: 12px;
+  }
+  .card-title {
+    font-size: 13px; font-weight: 600; color: #888; letter-spacing: 0.06em;
+    margin-bottom: 10px; padding-bottom: 8px; border-bottom: 0.5px solid #e8e5de;
+  }
+  input, select, textarea {
+    width: 100%; padding: 8px 11px; font-size: 13px;
+    border: 0.5px solid #d5d2ca; border-radius: 8px;
+    background: #fff; color: #1a1a1a; outline: none;
+    font-family: inherit; transition: border-color 0.15s;
+  }
+  input:focus, select:focus, textarea:focus { border-color: #999; }
+  input[type=radio] { width: auto; margin: 0; accent-color: #1a1a1a; }
+  button {
+    padding: 8px 16px; font-size: 13px; border-radius: 8px; cursor: pointer;
+    border: 0.5px solid #ccc; background: #fff; color: #1a1a1a;
+    font-family: inherit; transition: background 0.12s;
+  }
+  button:hover { background: #f5f4f0; }
+  button:disabled { opacity: 0.45; cursor: not-allowed; }
+  button.primary {
+    background: #1a1a1a; color: #fff; border-color: #1a1a1a; font-weight: 500;
+  }
+  button.primary:hover { background: #333; }
+  .row {
+    display: grid; grid-template-columns: 140px 1fr;
+    gap: 8px 16px; padding: 11px 0;
+    border-bottom: 0.5px solid #eee; align-items: start;
+  }
+  .row:last-child { border-bottom: none; }
+  .row-label { font-size: 13px; color: #888; font-weight: 500; padding-top: 7px; }
+  .req { color: #a32d2d; }
+  .err { font-size: 12px; color: #a32d2d; margin-top: 4px; }
+  .app-header {
+    display: flex; justify-content: space-between; align-items: center;
+    margin-bottom: 1.5rem; padding-bottom: 1rem;
+    border-bottom: 0.5px solid #e0ddd5; flex-wrap: wrap; gap: 10px;
+  }
+  .app-title-sub { font-size: 11px; color: #aaa; letter-spacing: 0.12em; margin-bottom: 2px; }
+  .app-title { font-size: 22px; font-weight: 500; }
+  .list-item {
+    background: #fff; border: 0.5px solid #e0ddd5; border-radius: 12px;
+    padding: 14px 18px; margin-bottom: 8px; cursor: pointer;
+    transition: border-color 0.15s;
+  }
+  .list-item:hover { border-color: #b0aca0; }
+  .sync-status {
+    font-size: 11px; color: #888; display: flex; align-items: center; gap: 6px;
+  }
+  .sync-dot {
+    width: 6px; height: 6px; border-radius: 50%; background: #3b6d11;
+  }
+  @media (max-width: 600px) {
+    .row { grid-template-columns: 1fr; }
+    .row-label { padding-top: 0; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script>
+const {
+  useState,
+  useEffect,
+  useMemo
+} = React;
+const SHARED_BIN_ID = "6a4d1e44da38895dfe3b6f98";
+const JSONBIN_KEY = "$2a$10$vZ7VMUUZqAKtlQ9fqrBcmOIICIFZSZqb29oK445wVRcbZ9m/FNqKW";
+const JSONBIN_BASE = "https://api.jsonbin.io/v3";
+const ADMIN_PASSWORD = "6332";
+const MEETING_TYPES = ["ZOOM", "電話", "対面（当社）", "対面（顧客先）", "対面（カフェ・その他）"];
+async function getBin() {
+  const res = await fetch(JSONBIN_BASE + "/b/" + SHARED_BIN_ID + "/latest", {
+    headers: {
+      "X-Master-Key": JSONBIN_KEY
+    }
+  });
+  if (!res.ok) throw new Error("取得失敗 (" + res.status + ")");
+  const data = await res.json();
+  return data.record;
+}
+async function updateBin(data) {
+  const res = await fetch(JSONBIN_BASE + "/b/" + SHARED_BIN_ID, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Master-Key": JSONBIN_KEY
+    },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error("更新失敗 (" + res.status + ")");
+}
+async function createBin(data) {
+  const res = await fetch(JSONBIN_BASE + "/b", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Master-Key": JSONBIN_KEY,
+      "X-Bin-Name": "klabo-eigyo-shared",
+      "X-Bin-Private": "false"
+    },
+    body: JSON.stringify(data)
+  });
+  if (!res.ok) throw new Error("作成失敗");
+  const json = await res.json();
+  return json.metadata.id;
+}
+function TempBadge({
+  value
+}) {
+  const map = {
+    "高": {
+      bg: "#fcebeb",
+      color: "#a32d2d",
+      label: "🔥 高"
+    },
+    "中": {
+      bg: "#fff4e0",
+      color: "#854f0b",
+      label: "☀ 中"
+    },
+    "低": {
+      bg: "#e6f1fb",
+      color: "#185fa5",
+      label: "❄ 低"
+    }
+  };
+  const s = map[value] || map["中"];
+  return React.createElement("span", {
+    style: {
+      background: s.bg,
+      color: s.color,
+      fontSize: 11,
+      padding: "3px 10px",
+      borderRadius: 6,
+      fontWeight: 500
+    }
+  }, s.label);
+}
+function MeetingTypeBadge({
+  value
+}) {
+  if (!value) return null;
+  const isZoom = value === "ZOOM" || value === "電話";
+  const bg = isZoom ? "#e6f1fb" : "#f0ebe1";
+  const color = isZoom ? "#185fa5" : "#7a5c1a";
+  return React.createElement("span", {
+    style: {
+      background: bg,
+      color: color,
+      fontSize: 11,
+      padding: "3px 10px",
+      borderRadius: 6
+    }
+  }, value);
+}
+function SetupScreen() {
+  const [loading, setLoading] = useState(false);
+  const [newBinId, setNewBinId] = useState(null);
+  const [error, setError] = useState(null);
+  const [copied, setCopied] = useState(false);
+  const doCreate = async () => {
+    setLoading(true);
+    try {
+      const id = await createBin({
+        reports: []
+      });
+      setNewBinId(id);
+    } catch (e) {
+      setError(e.message);
+    }
+    setLoading(false);
+  };
+  const copy = () => {
+    navigator.clipboard.writeText(newBinId);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+  return React.createElement("div", {
+    className: "page"
+  }, React.createElement("div", {
+    className: "app-header"
+  }, React.createElement("div", null, React.createElement("div", {
+    className: "app-title-sub"
+  }, "株式会社ケイラボ"), React.createElement("div", {
+    className: "app-title",
+    style: {
+      fontSize: 20
+    }
+  }, "⚙️ 初期設定が必要です"))), React.createElement("div", {
+    className: "card",
+    style: {
+      background: "#fff9ec",
+      border: "0.5px solid #e8c97a"
+    }
+  }, React.createElement("div", {
+    className: "card-title",
+    style: {
+      color: "#854f0b"
+    }
+  }, "⚠ 共有ストレージ未設定"), React.createElement("p", {
+    style: {
+      fontSize: 13,
+      lineHeight: 1.8,
+      color: "#555"
+    }
+  }, "下のボタンを押してストレージを作成し、表示されるIDを index.html に貼り付けてください。")), !newBinId && React.createElement("div", {
+    className: "card",
+    style: {
+      textAlign: "center",
+      padding: "2rem"
+    }
+  }, React.createElement("button", {
+    className: "primary",
+    onClick: doCreate,
+    disabled: loading,
+    style: {
+      fontSize: 15,
+      padding: "14px 32px"
+    }
+  }, loading ? "作成中..." : "🚀 共有ストレージを作成する"), error && React.createElement("p", {
+    className: "err",
+    style: {
+      marginTop: 16
+    }
+  }, "エラー: ", error)), newBinId && React.createElement("div", {
+    className: "card",
+    style: {
+      background: "#eaf3de",
+      border: "0.5px solid #97c459"
+    }
+  }, React.createElement("div", {
+    className: "card-title",
+    style: {
+      color: "#3b6d11"
+    }
+  }, "✅ 作成成功！"), React.createElement("p", {
+    style: {
+      fontSize: 13,
+      marginBottom: 12
+    }
+  }, "このIDを index.html の SHARED_BIN_ID に貼り付けてください："), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8
+    }
+  }, React.createElement("input", {
+    type: "text",
+    value: newBinId,
+    readOnly: true,
+    style: {
+      fontFamily: "monospace",
+      fontWeight: 600
+    },
+    onClick: e => e.target.select()
+  }), React.createElement("button", {
+    className: "primary",
+    onClick: copy
+  }, copied ? "✓ コピー済" : "📋 コピー"))));
+}
+function ReportForm({
+  initial,
+  onSubmit,
+  onCancel,
+  mode
+}) {
+  const today = new Date().toISOString().split("T")[0];
+  const defaults = {
+    createdDate: today,
+    visitDate: "",
+    visitTimeFrom: "",
+    visitTimeTo: "",
+    author: "",
+    authorEmail: "",
+    company: "",
+    contactNames: "",
+    companions: "",
+    meetingType: "対面（顧客先）",
+    visitPlace: "",
+    content: "",
+    customerReaction: "",
+    issues: "",
+    achievements: "",
+    nextAction: "",
+    nextVisitDate: "",
+    marketInfo: "",
+    temperature: "中"
+  };
+  const [f, setF] = useState(initial ? {
+    ...defaults,
+    ...initial
+  } : defaults);
+  const [errors, setErrors] = useState({});
+  const [sending, setSending] = useState(false);
+  const set = (k, v) => setF(p => ({
+    ...p,
+    [k]: v
+  }));
+  const validate = () => {
+    const e = {};
+    if (!f.author.trim()) e.author = "作成者名を入力してください";
+    if (!f.company.trim()) e.company = "訪問先会社名を入力してください";
+    if (!f.visitDate) e.visitDate = "訪問日を入力してください";
+    if (!f.content.trim()) e.content = "商談内容を入力してください";
+    if (!f.nextAction.trim()) e.nextAction = "次回アクションを入力してください";
+    setErrors(e);
+    return Object.keys(e).length === 0;
+  };
+  const handleSubmit = async () => {
+    if (!validate()) return;
+    setSending(true);
+    const report = mode === "edit" ? {
+      ...f,
+      editedAt: new Date().toISOString()
+    } : {
+      ...f,
+      id: Date.now().toString(),
+      submittedAt: new Date().toISOString()
+    };
+    try {
+      await onSubmit(report);
+      setSending(false);
+      if (mode !== "edit") {
+        alert("✅ 報告書を保存しました。");
+      }
+    } catch (e) {
+      setSending(false);
+      alert("❌ 保存エラー: " + (e.message || String(e)));
+    }
+  };
+  return React.createElement("div", {
+    className: "page"
+  }, React.createElement("div", {
+    className: "app-header"
+  }, React.createElement("div", null, React.createElement("div", {
+    className: "app-title-sub"
+  }, "株式会社ケイラボ"), React.createElement("div", {
+    className: "app-title",
+    style: {
+      fontSize: 18
+    }
+  }, mode === "edit" ? "✏ 報告書を編集" : "新規営業報告")), React.createElement("button", {
+    onClick: onCancel
+  }, "← 戻る")), React.createElement("div", {
+    className: "card"
+  }, React.createElement("div", {
+    className: "card-title"
+  }, "１．基本情報"), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "作成日"), React.createElement("span", {
+    style: {
+      fontSize: 13,
+      color: "#888",
+      padding: "7px 0"
+    }
+  }, f.createdDate, "\u3000", React.createElement("span", {
+    style: {
+      fontSize: 11,
+      color: "#aaa"
+    }
+  }, "（自動）"))), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "訪問日 ", React.createElement("span", {
+    className: "req"
+  }, "*")), React.createElement("div", null, React.createElement("input", {
+    type: "date",
+    value: f.visitDate,
+    onChange: e => set("visitDate", e.target.value),
+    style: {
+      maxWidth: 180
+    }
+  }), errors.visitDate && React.createElement("p", {
+    className: "err"
+  }, errors.visitDate))), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "訪問時間"), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      alignItems: "center",
+      flexWrap: "wrap"
+    }
+  }, React.createElement("input", {
+    type: "time",
+    value: f.visitTimeFrom,
+    onChange: e => set("visitTimeFrom", e.target.value),
+    style: {
+      maxWidth: 120
+    }
+  }), React.createElement("span", {
+    style: {
+      color: "#888"
+    }
+  }, "～"), React.createElement("input", {
+    type: "time",
+    value: f.visitTimeTo,
+    onChange: e => set("visitTimeTo", e.target.value),
+    style: {
+      maxWidth: 120
+    }
+  }))), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "商談形態"), React.createElement("select", {
+    value: f.meetingType,
+    onChange: e => set("meetingType", e.target.value),
+    style: {
+      maxWidth: 280
+    }
+  }, MEETING_TYPES.map(t => React.createElement("option", {
+    key: t,
+    value: t
+  }, t)))), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "場所詳細"), React.createElement("input", {
+    type: "text",
+    placeholder: "店舗名・住所など（任意）",
+    value: f.visitPlace,
+    onChange: e => set("visitPlace", e.target.value)
+  })), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "作成者名 ", React.createElement("span", {
+    className: "req"
+  }, "*")), React.createElement("div", null, React.createElement("input", {
+    type: "text",
+    placeholder: "あなたの名前",
+    value: f.author,
+    onChange: e => set("author", e.target.value),
+    style: {
+      maxWidth: 220
+    }
+  }), errors.author && React.createElement("p", {
+    className: "err"
+  }, errors.author))), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "作成者メール"), React.createElement("input", {
+    type: "email",
+    placeholder: "your@email.com（任意）",
+    value: f.authorEmail,
+    onChange: e => set("authorEmail", e.target.value),
+    style: {
+      maxWidth: 280
+    }
+  })), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "訪問先会社名 ", React.createElement("span", {
+    className: "req"
+  }, "*")), React.createElement("div", null, React.createElement("input", {
+    type: "text",
+    placeholder: "例：ドン・キホーテ",
+    value: f.company,
+    onChange: e => set("company", e.target.value)
+  }), errors.company && React.createElement("p", {
+    className: "err"
+  }, errors.company))), React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: "start"
+    }
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "担当者名"), React.createElement("textarea", {
+    placeholder: "複数の場合は改行またはカンマで区切る（例：大和田様、串田様、谷口様）",
+    value: f.contactNames,
+    onChange: e => set("contactNames", e.target.value),
+    style: {
+      width: "100%",
+      minHeight: 55,
+      resize: "vertical"
+    }
+  })), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "同行者"), React.createElement("input", {
+    type: "text",
+    placeholder: "同行したメンバー（任意）",
+    value: f.companions,
+    onChange: e => set("companions", e.target.value)
+  })), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "温度感"), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 20
+    }
+  }, ["高", "中", "低"].map(t => React.createElement("label", {
+    key: t,
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 5,
+      fontSize: 13,
+      cursor: "pointer"
+    }
+  }, React.createElement("input", {
+    type: "radio",
+    name: "temp",
+    checked: f.temperature === t,
+    onChange: () => set("temperature", t)
+  }), " ", t))))), React.createElement("div", {
+    className: "card"
+  }, React.createElement("div", {
+    className: "card-title"
+  }, "２．商談内容"), React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: "start"
+    }
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "商談内容 ", React.createElement("span", {
+    className: "req"
+  }, "*")), React.createElement("div", null, React.createElement("textarea", {
+    placeholder: "商談の内容を具体的に記入してください",
+    value: f.content,
+    onChange: e => set("content", e.target.value),
+    style: {
+      width: "100%",
+      minHeight: 120,
+      resize: "vertical"
+    }
+  }), errors.content && React.createElement("p", {
+    className: "err"
+  }, errors.content))), React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: "start"
+    }
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "お客様の反応"), React.createElement("textarea", {
+    placeholder: "先方の反応・意見・関心度合いなど",
+    value: f.customerReaction,
+    onChange: e => set("customerReaction", e.target.value),
+    style: {
+      width: "100%",
+      minHeight: 70,
+      resize: "vertical"
+    }
+  })), React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: "start"
+    }
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "課題・懸念事項"), React.createElement("textarea", {
+    placeholder: "商談中に出てきた課題や懸念事項",
+    value: f.issues,
+    onChange: e => set("issues", e.target.value),
+    style: {
+      width: "100%",
+      minHeight: 70,
+      resize: "vertical"
+    }
+  }))), React.createElement("div", {
+    className: "card"
+  }, React.createElement("div", {
+    className: "card-title"
+  }, "３．本日の成果・今後の対応"), React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: "start"
+    }
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "本日の成果"), React.createElement("textarea", {
+    placeholder: "今回の訪問で得られた成果",
+    value: f.achievements,
+    onChange: e => set("achievements", e.target.value),
+    style: {
+      width: "100%",
+      minHeight: 70,
+      resize: "vertical"
+    }
+  })), React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: "start"
+    }
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "次回アクション ", React.createElement("span", {
+    className: "req"
+  }, "*")), React.createElement("div", {
+    style: {
+      width: "100%"
+    }
+  }, React.createElement("textarea", {
+    placeholder: "次回までに行うべきこと・約束した内容",
+    value: f.nextAction,
+    onChange: e => set("nextAction", e.target.value),
+    style: {
+      width: "100%",
+      minHeight: 70,
+      resize: "vertical"
+    }
+  }), errors.nextAction && React.createElement("p", {
+    className: "err"
+  }, errors.nextAction))), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "次回訪問予定日"), React.createElement("input", {
+    type: "date",
+    value: f.nextVisitDate,
+    onChange: e => set("nextVisitDate", e.target.value),
+    style: {
+      maxWidth: 180
+    }
+  }))), React.createElement("div", {
+    className: "card"
+  }, React.createElement("div", {
+    className: "card-title"
+  }, "４．競合・市場情報・その他共有事項"), React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: "start"
+    }
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "共有事項"), React.createElement("textarea", {
+    placeholder: "競合他社の情報、市場動向、その他社内で共有したい事項など",
+    value: f.marketInfo,
+    onChange: e => set("marketInfo", e.target.value),
+    style: {
+      width: "100%",
+      minHeight: 70,
+      resize: "vertical"
+    }
+  }))), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      justifyContent: "flex-end",
+      marginTop: 4
+    }
+  }, React.createElement("button", {
+    onClick: onCancel,
+    disabled: sending
+  }, "キャンセル"), React.createElement("button", {
+    className: "primary",
+    onClick: handleSubmit,
+    disabled: sending
+  }, sending ? "送信中..." : mode === "edit" ? "変更を保存" : "報告書を提出する")));
+}
+function Detail({
+  report,
+  onBack,
+  onDelete,
+  onEdit
+}) {
+  const handleDelete = async () => {
+    const pw = window.prompt("管理者パスワードを入力してください");
+    if (pw === null) return;
+    if (pw !== ADMIN_PASSWORD) {
+      alert("パスワードが違います");
+      return;
+    }
+    if (window.confirm("「" + report.company + "」の報告書を削除しますか？")) {
+      try {
+        await onDelete(report.id);
+        onBack();
+      } catch (e) {
+        alert("削除エラー: " + e.message);
+      }
+    }
+  };
+  const handleEdit = () => {
+    const pw = window.prompt("管理者パスワードを入力してください");
+    if (pw === null) return;
+    if (pw !== ADMIN_PASSWORD) {
+      alert("パスワードが違います");
+      return;
+    }
+    onEdit(report);
+  };
+  const timeStr = [report.visitTimeFrom, report.visitTimeTo].filter(Boolean).join("～");
+  return React.createElement("div", {
+    className: "page"
+  }, React.createElement("div", {
+    className: "app-header",
+    style: {
+      flexWrap: "wrap",
+      gap: 10
+    }
+  }, React.createElement("div", {
+    style: {
+      display: "flex",
+      alignItems: "center",
+      gap: 10,
+      flexWrap: "wrap"
+    }
+  }, React.createElement("button", {
+    onClick: onBack
+  }, "← 一覧へ"), React.createElement("span", {
+    style: {
+      fontSize: 18,
+      fontWeight: 500
+    }
+  }, "営業報告書"), React.createElement(TempBadge, {
+    value: report.temperature
+  }), React.createElement(MeetingTypeBadge, {
+    value: report.meetingType
+  })), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 6,
+      flexWrap: "wrap"
+    }
+  }, React.createElement("button", {
+    onClick: handleEdit
+  }, "✏ 編集"), React.createElement("button", {
+    onClick: handleDelete,
+    style: {
+      color: "#a32d2d",
+      borderColor: "#f09595"
+    }
+  }, "🗑 削除"))), React.createElement("div", {
+    className: "card"
+  }, React.createElement("div", {
+    className: "card-title"
+  }, "１．基本情報"), report.createdDate && React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "作成日"), React.createElement("span", {
+    style: {
+      color: "#888"
+    }
+  }, report.createdDate)), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "訪問日"), React.createElement("span", null, report.visitDate, timeStr && React.createElement("span", {
+    style: {
+      color: "#888",
+      marginLeft: 8
+    }
+  }, timeStr))), report.meetingType && React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "商談形態"), React.createElement("span", null, React.createElement(MeetingTypeBadge, {
+    value: report.meetingType
+  }))), report.visitPlace && React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "場所詳細"), React.createElement("span", null, report.visitPlace)), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "作成者"), React.createElement("span", null, report.author, report.authorEmail && React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "#888",
+      marginLeft: 8
+    }
+  }, report.authorEmail))), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "訪問先会社名"), React.createElement("span", {
+    style: {
+      fontWeight: 500
+    }
+  }, report.company)), report.contactNames && React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: "start"
+    }
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "担当者名"), React.createElement("span", {
+    style: {
+      whiteSpace: "pre-wrap"
+    }
+  }, report.contactNames)), report.companions && React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "同行者"), React.createElement("span", null, report.companions)), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "温度感"), React.createElement("span", null, React.createElement(TempBadge, {
+    value: report.temperature
+  })))), React.createElement("div", {
+    className: "card"
+  }, React.createElement("div", {
+    className: "card-title"
+  }, "２．商談内容"), React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: "start"
+    }
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "商談内容"), React.createElement("span", {
+    style: {
+      whiteSpace: "pre-wrap",
+      lineHeight: 1.8
+    }
+  }, report.content)), report.customerReaction && React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: "start"
+    }
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "お客様の反応"), React.createElement("span", {
+    style: {
+      whiteSpace: "pre-wrap",
+      lineHeight: 1.8
+    }
+  }, report.customerReaction)), report.issues && React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: "start"
+    }
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "課題・懸念事項"), React.createElement("span", {
+    style: {
+      whiteSpace: "pre-wrap",
+      lineHeight: 1.8
+    }
+  }, report.issues))), React.createElement("div", {
+    className: "card",
+    style: {
+      background: "#e6f1fb",
+      border: "0.5px solid #b5d4ed"
+    }
+  }, React.createElement("div", {
+    className: "card-title",
+    style: {
+      color: "#185fa5",
+      borderBottomColor: "#cfdfee"
+    }
+  }, "３．本日の成果・今後の対応"), report.achievements && React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: "start",
+      borderBottomColor: "#cfdfee"
+    }
+  }, React.createElement("span", {
+    className: "row-label",
+    style: {
+      color: "#5a87b3"
+    }
+  }, "本日の成果"), React.createElement("span", {
+    style: {
+      whiteSpace: "pre-wrap",
+      lineHeight: 1.8
+    }
+  }, report.achievements)), React.createElement("div", {
+    className: "row",
+    style: {
+      alignItems: "start",
+      borderBottomColor: "#cfdfee"
+    }
+  }, React.createElement("span", {
+    className: "row-label",
+    style: {
+      color: "#5a87b3"
+    }
+  }, "次回アクション"), React.createElement("span", {
+    style: {
+      whiteSpace: "pre-wrap",
+      lineHeight: 1.8
+    }
+  }, report.nextAction)), report.nextVisitDate && React.createElement("div", {
+    className: "row",
+    style: {
+      borderBottomColor: "#cfdfee"
+    }
+  }, React.createElement("span", {
+    className: "row-label",
+    style: {
+      color: "#5a87b3"
+    }
+  }, "次回訪問予定日"), React.createElement("span", {
+    style: {
+      fontWeight: 500
+    }
+  }, report.nextVisitDate))), report.marketInfo && React.createElement("div", {
+    className: "card"
+  }, React.createElement("div", {
+    className: "card-title"
+  }, "４．競合・市場情報・その他共有事項"), React.createElement("div", {
+    style: {
+      whiteSpace: "pre-wrap",
+      lineHeight: 1.8,
+      fontSize: 14,
+      padding: "8px 0"
+    }
+  }, report.marketInfo)), React.createElement("div", {
+    style: {
+      fontSize: 11,
+      color: "#aaa",
+      marginTop: 8,
+      textAlign: "right"
+    }
+  }, "提出日時：", report.submittedAt ? new Date(report.submittedAt).toLocaleString("ja-JP") : "―", report.editedAt && React.createElement("span", null, " ・ 編集日時：", new Date(report.editedAt).toLocaleString("ja-JP"))));
+}
+function List({
+  reports,
+  onSelect,
+  onNew,
+  onRefresh,
+  onExport,
+  lastSync,
+  refreshing
+}) {
+  const [search, setSearch] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
+  const filtered = useMemo(() => {
+    return reports.filter(r => {
+      if (dateFrom && r.visitDate < dateFrom) return false;
+      if (dateTo && r.visitDate > dateTo) return false;
+      if (search.trim()) {
+        const q = search.toLowerCase();
+        const hay = [r.company, r.author, r.contactNames, r.content, r.customerReaction, r.achievements, r.nextAction, r.marketInfo, r.visitPlace].filter(Boolean).join(" ").toLowerCase();
+        if (!hay.includes(q)) return false;
+      }
+      return true;
+    }).sort((a, b) => (b.visitDate + (b.visitTimeFrom || "")).localeCompare(a.visitDate + (a.visitTimeFrom || "")));
+  }, [reports, search, dateFrom, dateTo]);
+  return React.createElement("div", {
+    className: "page"
+  }, React.createElement("div", {
+    className: "app-header"
+  }, React.createElement("div", null, React.createElement("div", {
+    className: "app-title-sub"
+  }, "株式会社ケイラボ"), React.createElement("div", {
+    className: "app-title"
+  }, "営業報告システム"), lastSync && React.createElement("div", {
+    className: "sync-status",
+    style: {
+      marginTop: 4
+    }
+  }, React.createElement("span", {
+    className: "sync-dot"
+  }), React.createElement("span", null, "最終同期: ", lastSync))), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      flexWrap: "wrap"
+    }
+  }, React.createElement("button", {
+    onClick: onRefresh,
+    disabled: refreshing
+  }, refreshing ? "🔄 更新中..." : "🔄 更新"), React.createElement("button", {
+    onClick: onExport
+  }, "📊 CSV出力"), React.createElement("button", {
+    className: "primary",
+    onClick: onNew
+  }, "＋ 新規報告"))), React.createElement("div", {
+    className: "card",
+    style: {
+      background: "#f9f8f5"
+    }
+  }, React.createElement("div", {
+    className: "card-title"
+  }, "🔍 検索"), React.createElement("div", {
+    style: {
+      display: "grid",
+      gridTemplateColumns: "1fr",
+      gap: 8
+    }
+  }, React.createElement("input", {
+    type: "text",
+    placeholder: "作成者・企業名・担当者・内容で検索...",
+    value: search,
+    onChange: e => setSearch(e.target.value)
+  }), React.createElement("div", {
+    style: {
+      display: "flex",
+      gap: 8,
+      alignItems: "center",
+      flexWrap: "wrap"
+    }
+  }, React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "#888"
+    }
+  }, "期間："), React.createElement("input", {
+    type: "date",
+    value: dateFrom,
+    onChange: e => setDateFrom(e.target.value),
+    style: {
+      maxWidth: 160
+    }
+  }), React.createElement("span", {
+    style: {
+      fontSize: 12,
+      color: "#888"
+    }
+  }, "～"), React.createElement("input", {
+    type: "date",
+    value: dateTo,
+    onChange: e => setDateTo(e.target.value),
+    style: {
+      maxWidth: 160
+    }
+  }), (search || dateFrom || dateTo) && React.createElement("button", {
+    onClick: () => {
+      setSearch("");
+      setDateFrom("");
+      setDateTo("");
+    },
+    style: {
+      fontSize: 12,
+      padding: "6px 12px"
+    }
+  }, "✕ クリア"))), React.createElement("div", {
+    style: {
+      fontSize: 12,
+      color: "#888",
+      marginTop: 8
+    }
+  }, filtered.length, "件 / 全", reports.length, "件")), filtered.length === 0 ? React.createElement("div", {
+    style: {
+      textAlign: "center",
+      padding: "4rem 0",
+      color: "#aaa",
+      fontSize: 14
+    }
+  }, reports.length === 0 ? "報告書がありません。「新規報告」から作成してください。" : "検索条件に該当する報告書がありません。") : filtered.map(r => {
+    const timeStr = [r.visitTimeFrom, r.visitTimeTo].filter(Boolean).join("～");
+    const summary = r.content || "";
+    return React.createElement("div", {
+      key: r.id,
+      className: "list-item",
+      onClick: () => onSelect(r.id)
+    }, React.createElement("div", {
+      style: {
+        display: "flex",
+        justifyContent: "space-between",
+        alignItems: "flex-start"
+      }
+    }, React.createElement("div", {
+      style: {
+        flex: 1,
+        minWidth: 0
+      }
+    }, React.createElement("div", {
+      style: {
+        display: "flex",
+        alignItems: "center",
+        gap: 8,
+        marginBottom: 6,
+        flexWrap: "wrap"
+      }
+    }, React.createElement(TempBadge, {
+      value: r.temperature
+    }), React.createElement(MeetingTypeBadge, {
+      value: r.meetingType
+    }), React.createElement("span", {
+      style: {
+        fontSize: 14,
+        fontWeight: 500
+      }
+    }, r.company)), React.createElement("p", {
+      style: {
+        fontSize: 12,
+        color: "#888",
+        margin: 0
+      }
+    }, r.author, " ・ ", r.visitDate, timeStr && React.createElement("span", null, " ", timeStr)), summary && React.createElement("p", {
+      style: {
+        fontSize: 12,
+        color: "#666",
+        margin: "4px 0 0",
+        lineHeight: 1.5,
+        overflow: "hidden",
+        textOverflow: "ellipsis",
+        display: "-webkit-box",
+        WebkitLineClamp: 2,
+        WebkitBoxOrient: "vertical"
+      }
+    }, summary.substring(0, 100), summary.length > 100 ? "..." : "")), React.createElement("span", {
+      style: {
+        fontSize: 18,
+        color: "#ccc",
+        marginLeft: 12
+      }
+    }, "›")));
+  }));
+}
+function exportCSV(reports) {
+  const headers = ["作成日", "訪問日", "訪問時間", "商談形態", "場所詳細", "作成者", "作成者メール", "訪問先会社名", "担当者名", "同行者", "温度感", "商談内容", "お客様の反応", "課題・懸念事項", "本日の成果", "次回アクション", "次回訪問予定日", "共有事項", "提出日時"];
+  const rows = reports.map(r => {
+    const timeStr = [r.visitTimeFrom, r.visitTimeTo].filter(Boolean).join("～");
+    return [r.createdDate || "", r.visitDate || "", timeStr, r.meetingType || "", r.visitPlace || "", r.author || "", r.authorEmail || "", r.company || "", (r.contactNames || "").replace(/\n/g, " / "), r.companions || "", r.temperature || "", (r.content || "").replace(/\n/g, " "), (r.customerReaction || "").replace(/\n/g, " "), (r.issues || "").replace(/\n/g, " "), (r.achievements || "").replace(/\n/g, " "), (r.nextAction || "").replace(/\n/g, " "), r.nextVisitDate || "", (r.marketInfo || "").replace(/\n/g, " "), (r.submittedAt || "").split("T")[0]].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",");
+  });
+  const csv = "\uFEFF" + [headers.join(","), ...rows].join("\n");
+  const blob = new Blob([csv], {
+    type: "text/csv;charset=utf-8"
+  });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "営業報告_" + new Date().toLocaleDateString("ja-JP").replace(/\//g, "-") + ".csv";
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+function App() {
+  if (!SHARED_BIN_ID || SHARED_BIN_ID === "6a4d1e44da38895dfe3b6f98") {
+    return React.createElement(SetupScreen, null);
+  }
+  const [view, setView] = useState("list");
+  const [reports, setReports] = useState([]);
+  const [selId, setSelId] = useState(null);
+  const [editReport, setEditReport] = useState(null);
+  const [loaded, setLoaded] = useState(false);
+  const [loadError, setLoadError] = useState(null);
+  const [lastSync, setLastSync] = useState(null);
+  const [refreshing, setRefreshing] = useState(false);
+  useEffect(() => {
+    (async () => {
+      try {
+        const data = await getBin();
+        if (data && Array.isArray(data.reports)) setReports(data.reports);
+        setLastSync(new Date().toLocaleTimeString("ja-JP"));
+      } catch (e) {
+        setLoadError("データ取得失敗: " + e.message);
+      }
+      setLoaded(true);
+    })();
+  }, []);
+  const refresh = async () => {
+    setRefreshing(true);
+    try {
+      const data = await getBin();
+      if (data && Array.isArray(data.reports)) setReports(data.reports);
+      setLastSync(new Date().toLocaleTimeString("ja-JP"));
+    } catch (e) {
+      alert("更新エラー: " + e.message);
+    }
+    setRefreshing(false);
+  };
+  const addReport = async newReport => {
+    const data = await getBin();
+    const latest = data && Array.isArray(data.reports) ? data.reports : [];
+    const newList = [newReport, ...latest];
+    await updateBin({
+      reports: newList
+    });
+    setReports(newList);
+    setLastSync(new Date().toLocaleTimeString("ja-JP"));
+  };
+  const updateReport = async updated => {
+    const data = await getBin();
+    const latest = data && Array.isArray(data.reports) ? data.reports : reports;
+    const newList = latest.map(r => r.id === updated.id ? updated : r);
+    await updateBin({
+      reports: newList
+    });
+    setReports(newList);
+    setLastSync(new Date().toLocaleTimeString("ja-JP"));
+    setEditReport(null);
+    setView("detail");
+  };
+  const deleteReport = async id => {
+    const data = await getBin();
+    const latest = data && Array.isArray(data.reports) ? data.reports : reports;
+    const newList = latest.filter(r => r.id !== id);
+    await updateBin({
+      reports: newList
+    });
+    setReports(newList);
+    setLastSync(new Date().toLocaleTimeString("ja-JP"));
+  };
+  if (!loaded) return React.createElement("div", {
+    style: {
+      padding: "3rem",
+      textAlign: "center",
+      color: "#aaa"
+    }
+  }, "読み込み中...");
+  if (loadError) return React.createElement("div", {
+    className: "page"
+  }, React.createElement("div", {
+    className: "card",
+    style: {
+      background: "#fcebeb",
+      border: "0.5px solid #f09595"
+    }
+  }, React.createElement("div", {
+    className: "card-title",
+    style: {
+      color: "#a32d2d"
+    }
+  }, "⚠ エラー"), React.createElement("p", {
+    style: {
+      fontSize: 13
+    }
+  }, loadError), React.createElement("button", {
+    onClick: () => window.location.reload(),
+    style: {
+      marginTop: 12
+    }
+  }, "再試行")));
+  if (view === "new") return React.createElement(ReportForm, {
+    mode: "new",
+    onCancel: () => setView("list"),
+    onSubmit: async r => {
+      await addReport(r);
+      setView("list");
+    }
+  });
+  if (view === "edit" && editReport) return React.createElement(ReportForm, {
+    mode: "edit",
+    initial: editReport,
+    onCancel: () => {
+      setEditReport(null);
+      setView("detail");
+    },
+    onSubmit: updateReport
+  });
+  if (view === "detail") {
+    const r = reports.find(x => x.id === selId);
+    if (!r) {
+      setView("list");
+      return null;
+    }
+    return React.createElement(Detail, {
+      report: r,
+      onBack: () => setView("list"),
+      onDelete: deleteReport,
+      onEdit: rep => {
+        setEditReport(rep);
+        setView("edit");
+      }
+    });
+  }
+  return React.createElement(List, {
+    reports: reports,
+    lastSync: lastSync,
+    refreshing: refreshing,
+    onRefresh: refresh,
+    onSelect: id => {
+      setSelId(id);
+      setView("detail");
+    },
+    onNew: () => setView("new"),
+    onExport: () => exportCSV(reports)
+  });
+}
+ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(App, null));
+</script>
+</body>
+</html>
