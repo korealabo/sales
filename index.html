@@ -88,7 +88,7 @@ const {
   useEffect,
   useMemo
 } = React;
-const SHARED_BIN_ID = "6a4d1e44da38895dfe3b6f98";
+const SHARED_BIN_ID = "6a4d2801f5f4af5e296d36fb";
 const JSONBIN_KEY = "$2a$10$vZ7VMUUZqAKtlQ9fqrBcmOIICIFZSZqb29oK445wVRcbZ9m/FNqKW";
 const JSONBIN_BASE = "https://api.jsonbin.io/v3";
 const ADMIN_PASSWORD = "6332";
@@ -1153,7 +1153,7 @@ function exportCSV(reports) {
   URL.revokeObjectURL(url);
 }
 function App() {
-  if (!SHARED_BIN_ID || SHARED_BIN_ID === "6a4d1e44da38895dfe3b6f98") {
+  if (!SHARED_BIN_ID || SHARED_BIN_ID === "6a4d2801f5f4af5e296d36fb") {
     return React.createElement(SetupScreen, null);
   }
   const [view, setView] = useState("list");
