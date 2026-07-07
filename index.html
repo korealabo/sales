@@ -1153,7 +1153,7 @@ function exportCSV(reports) {
   URL.revokeObjectURL(url);
 }
 function App() {
-  if (!SHARED_BIN_ID || SHARED_BIN_ID === "6a4d2801f5f4af5e296d36fb") {
+  if (!SHARED_BIN_ID) {
     return React.createElement(SetupScreen, null);
   }
   const [view, setView] = useState("list");
