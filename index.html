@@ -298,6 +298,10 @@ function ReportForm({
     authorEmail: "",
     company: "",
     contactNames: "",
+    wholesaler: "",
+    wholesalerContact: "",
+    retailer: "",
+    retailerContact: "",
     companions: "",
     meetingType: "対面（顧客先）",
     visitPlace: "",
@@ -498,22 +502,45 @@ function ReportForm({
     }
   }, React.createElement("span", {
     className: "row-label"
-  }, "担当者名"), React.createElement("textarea", {
-    placeholder: "複数の場合は改行またはカンマで区切る（例：大和田様、串田様、谷口様）",
-    value: f.contactNames,
-    onChange: e => set("contactNames", e.target.value),
-    style: {
-      width: "100%",
-      minHeight: 55,
-      resize: "vertical"
-    }
+  }, "同席問屋"), React.createElement("input", {
+    type: "text",
+    placeholder: "同席した問屋の会社名（例：あらた、PALTAC）※いない場合は空欄",
+    value: f.wholesaler,
+    onChange: e => set("wholesaler", e.target.value)
   })), React.createElement("div", {
     className: "row"
   }, React.createElement("span", {
     className: "row-label"
-  }, "同行者"), React.createElement("input", {
+  }, "問屋担当者名"), React.createElement("input", {
     type: "text",
-    placeholder: "同行したメンバー（任意）",
+    placeholder: "問屋側の担当者名（例：佐藤様）",
+    value: f.wholesalerContact,
+    onChange: e => set("wholesalerContact", e.target.value)
+  })), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "同席小売"), React.createElement("input", {
+    type: "text",
+    placeholder: "同席した小売の会社名（例：ウエルシア）※いない場合は空欄",
+    value: f.retailer,
+    onChange: e => set("retailer", e.target.value)
+  })), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "小売担当者名"), React.createElement("input", {
+    type: "text",
+    placeholder: "小売側の担当者名（例：田中様）※自分の名前は書かない",
+    value: f.retailerContact,
+    onChange: e => set("retailerContact", e.target.value)
+  })), React.createElement("div", {
+    className: "row"
+  }, React.createElement("span", {
+    className: "row-label"
+  }, "社内同席者"), React.createElement("input", {
+    type: "text",
+    placeholder: "同席した当社メンバーの名前（任意）",
     value: f.companions,
     onChange: e => set("companions", e.target.value)
   })), React.createElement("div", {
@@ -814,15 +841,31 @@ function Detail({
     }
   }, React.createElement("span", {
     className: "row-label"
-  }, "担当者名"), React.createElement("span", {
+  }, "先方担当者名"), React.createElement("span", {
     style: {
       whiteSpace: "pre-wrap"
     }
-  }, report.contactNames)), report.companions && React.createElement("div", {
+  }, report.contactNames)), report.wholesaler && React.createElement("div", {
+    className: "detail-row"
+  }, React.createElement("span", {
+    className: "detail-label"
+  }, "同席問屋"), React.createElement("span", null, report.wholesaler)), report.wholesalerContact && React.createElement("div", {
+    className: "detail-row"
+  }, React.createElement("span", {
+    className: "detail-label"
+  }, "問屋担当者名"), React.createElement("span", null, report.wholesalerContact)), report.retailer && React.createElement("div", {
+    className: "detail-row"
+  }, React.createElement("span", {
+    className: "detail-label"
+  }, "同席小売"), React.createElement("span", null, report.retailer)), report.retailerContact && React.createElement("div", {
+    className: "detail-row"
+  }, React.createElement("span", {
+    className: "detail-label"
+  }, "小売担当者名"), React.createElement("span", null, report.retailerContact)), report.companions && React.createElement("div", {
     className: "row"
   }, React.createElement("span", {
     className: "row-label"
-  }, "同行者"), React.createElement("span", null, report.companions)), React.createElement("div", {
+  }, "社内同席者"), React.createElement("span", null, report.companions)), React.createElement("div", {
     className: "row"
   }, React.createElement("span", {
     className: "row-label"
@@ -964,7 +1007,7 @@ function List({
       if (dateTo && r.visitDate > dateTo) return false;
       if (search.trim()) {
         const q = search.toLowerCase();
-        const hay = [r.company, r.author, r.contactNames, r.content, r.customerReaction, r.achievements, r.nextAction, r.marketInfo, r.visitPlace].filter(Boolean).join(" ").toLowerCase();
+        const hay = [r.company, r.author, r.contactNames, r.wholesaler, r.wholesalerContact, r.retailer, r.retailerContact, r.content, r.customerReaction, r.achievements, r.nextAction, r.marketInfo, r.visitPlace].filter(Boolean).join(" ").toLowerCase();
         if (!hay.includes(q)) return false;
       }
       return true;
@@ -1134,10 +1177,10 @@ function List({
   }));
 }
 function exportCSV(reports) {
-  const headers = ["作成日", "訪問日", "訪問時間", "商談形態", "場所詳細", "作成者", "作成者メール", "訪問先会社名", "担当者名", "同行者", "温度感", "商談内容", "お客様の反応", "課題・懸念事項", "本日の成果", "次回アクション", "次回訪問予定日", "共有事項", "提出日時"];
+  const headers = ["作成日", "訪問日", "訪問時間", "商談形態", "場所詳細", "作成者", "作成者メール", "訪問先会社名", "担当者名（旧形式）", "同席問屋", "問屋担当者名", "同席小売", "小売担当者名", "社内同席者", "温度感", "商談内容", "お客様の反応", "課題・懸念事項", "本日の成果", "次回アクション", "次回訪問予定日", "共有事項", "提出日時"];
   const rows = reports.map(r => {
     const timeStr = [r.visitTimeFrom, r.visitTimeTo].filter(Boolean).join("～");
-    return [r.createdDate || "", r.visitDate || "", timeStr, r.meetingType || "", r.visitPlace || "", r.author || "", r.authorEmail || "", r.company || "", (r.contactNames || "").replace(/\n/g, " / "), r.companions || "", r.temperature || "", (r.content || "").replace(/\n/g, " "), (r.customerReaction || "").replace(/\n/g, " "), (r.issues || "").replace(/\n/g, " "), (r.achievements || "").replace(/\n/g, " "), (r.nextAction || "").replace(/\n/g, " "), r.nextVisitDate || "", (r.marketInfo || "").replace(/\n/g, " "), (r.submittedAt ? new Date(r.submittedAt).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }) : "")].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",");
+    return [r.createdDate || "", r.visitDate || "", timeStr, r.meetingType || "", r.visitPlace || "", r.author || "", r.authorEmail || "", r.company || "", (r.contactNames || "").replace(/\n/g, " / "), r.wholesaler || "", r.wholesalerContact || "", r.retailer || "", r.retailerContact || "", r.companions || "", r.temperature || "", (r.content || "").replace(/\n/g, " "), (r.customerReaction || "").replace(/\n/g, " "), (r.issues || "").replace(/\n/g, " "), (r.achievements || "").replace(/\n/g, " "), (r.nextAction || "").replace(/\n/g, " "), r.nextVisitDate || "", (r.marketInfo || "").replace(/\n/g, " "), (r.submittedAt ? new Date(r.submittedAt).toLocaleDateString("sv-SE", { timeZone: "Asia/Tokyo" }) : "")].map(v => '"' + String(v).replace(/"/g, '""') + '"').join(",");
   });
   const csv = "\uFEFF" + [headers.join(","), ...rows].join("\n");
   const blob = new Blob([csv], {
